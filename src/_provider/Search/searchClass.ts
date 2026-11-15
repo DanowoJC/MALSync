@@ -191,6 +191,15 @@ export class SearchClass {
 
   protected async getCache() {
     return api.storage.get(`${this.page.name}/${this.identifier}/Search`).then(state => {
+      // Results cached before the single result redirect was handled can point to a character
+      if (
+        state &&
+        state.provider === 'mal' &&
+        state.url &&
+        !/myanimelist\.net\/(anime|manga)\/\d+/.test(state.url)
+      ) {
+        return undefined;
+      }
       if (state) state.cache = true;
       return state;
     });
@@ -457,6 +466,25 @@ export class SearchClass {
 
     if (!response || response.responseText?.includes('  error ')) return false;
     if (!response || response.responseText?.includes('No titles that matched')) return false;
+
+    // MAL redirects to the entry itself when the search has a single result
+    const direct = (response.finalUrl || '').match(
+      /^https:\/\/myanimelist\.net\/(anime|manga)\/(\d+)(\/[^?#]*)?/,
+    );
+    if (direct) {
+      const isNovel = /topmanga\.php\?type=(lightnovels|novels)"/.test(response.responseText);
+      if ((this.type === 'manga' && isNovel) || (this.type === 'novel' && !isNovel)) return false;
+
+      const ogTitle = response.responseText.match(/property="og:title" content="([^"]*)"/);
+      const malTitle = ogTitle ? utils.htmlDecode(ogTitle[1]) : '';
+      return {
+        id: parseInt(direct[2]),
+        url: direct[0],
+        offset: 0,
+        provider: 'mal',
+        similarity: SearchClass.similarity(malTitle, this.sanitizedTitle),
+      };
+    }
 
     return handleResult(response, 1, this);
   }

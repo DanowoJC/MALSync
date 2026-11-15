@@ -1,4 +1,20 @@
+import type { ChibiGenerator } from '../../../chibiScript/ChibiGenerator';
 import { PageInterface } from '../../pageInterface';
+
+// Images of the chapter in the url. The MangaOni Plus extension appends the following chapters
+// to the same reader as `.mop-chapter[data-id]`, while the chapter the page was opened with
+// stays as direct children of #slider.
+function chapterImages($c: ChibiGenerator<unknown>) {
+  return $c.querySelectorAll(
+    $c
+      .string('#slider > .mop-chapter[data-id="')
+      .concat($c.url().urlPart(5).run())
+      .concat('"] img, #slider:not(:has(> .mop-chapter[data-id="')
+      .concat($c.url().urlPart(5).run())
+      .concat('"])) > img')
+      .run(),
+  );
+}
 
 export const MangaOni: PageInterface = {
   name: 'MangaOni',
@@ -43,8 +59,8 @@ export const MangaOni: PageInterface = {
     readerConfig: [
       {
         condition: $c => $c.url().urlPart(6).equals('cascada').run(),
-        current: $c => $c.querySelectorAll('#slider img').countAbove().run(),
-        total: $c => $c.querySelectorAll('#slider img').length().run(),
+        current: $c => $c.exec(chapterImages).countAbove().run(),
+        total: $c => $c.exec(chapterImages).length().run(),
       },
       {
         current: $c => $c.querySelector('#pag').text().number().run(),
@@ -97,7 +113,8 @@ export const MangaOni: PageInterface = {
       return $c.addStyle(require('./style.less?raw').toString()).run();
     },
     ready($c) {
-      return $c.domReady().trigger().run();
+      // The title only changes when the chapter changes without a page load
+      return $c.detectChanges($c.title().run(), $c.trigger().run()).domReady().trigger().run();
     },
   },
 };
